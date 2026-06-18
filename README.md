@@ -12,7 +12,7 @@ A Docker image for [SomeDL](https://github.com/ChemistryGull/SomeDL) — downloa
 ```yaml
 services:
   somedl:
-    image: ghcr.io/fantaz/somedl:latest
+    image: ghcr.io/fant4zma/somedl:latest
     container_name: somedl
     environment:
       - PUID=1000
