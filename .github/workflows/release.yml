@@ -9,7 +9,7 @@ jobs:
   check-and-build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       packages: write
 
     steps:
@@ -21,28 +21,6 @@ jobs:
           VERSION=$(curl -s https://pypi.org/pypi/SomeDL/json | jq -r '.info.version')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Get currently published image version from file
-        id: current
-        run: |
-          # Read the version from tracked file; fallback to "none" if file doesn't exist
-          if [ -f .published-version ]; then
-            CURRENT=$(cat .published-version | tr -d '[:space:]')
-          else
-            CURRENT="none"
-          fi
-          echo "version=$CURRENT" >> $GITHUB_OUTPUT
-
-      - name: Decide whether a build is needed
-        id: need_build
-        run: |
-          if [ "${{ steps.pypi.outputs.version }}" = "${{ steps.current.outputs.version }}" ]; then
-            echo "Already on ${{ steps.pypi.outputs.version }}, skipping build."
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "New version ${{ steps.pypi.outputs.version }} detected (current: ${{ steps.current.outputs.version }})."
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Downcase registry owner
         id: registry_owner
         run: |
@@ -50,18 +28,33 @@ jobs:
           echo "owner=$OWNER" >> $GITHUB_OUTPUT
 
       - name: Log in to GHCR
-        if: steps.need_build.outputs.skip == 'false'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/setup-buildx-action@v4
-        if: steps.need_build.outputs.skip == 'false'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Check if image tag already exists on GHCR
+        id: check_tag
+        run: |
+          OWNER="${{ steps.registry_owner.outputs.owner }}"
+          TAG="${{ steps.pypi.outputs.version }}"
+          
+          # Inspect remote image tags without pulling layers.
+          # Exits with 0 if tag exists, non-zero if it does not.
+          if docker buildx imagetools inspect ghcr.io/$OWNER/somedl:$TAG >/dev/null 2>&1; then
+            echo "Tag $TAG already exists on GHCR. Skipping build."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "Tag $TAG not found on GHCR. Building..."
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
 
       - uses: docker/build-push-action@v7
-        if: steps.need_build.outputs.skip == 'false'
+        if: steps.check_tag.outputs.skip == 'false'
         with:
           context: .
           push: true
@@ -74,13 +67,3 @@ jobs:
             org.opencontainers.image.version=${{ steps.pypi.outputs.version }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=GPL-3.0-only
-
-      - name: Update published version file
-        if: steps.need_build.outputs.skip == 'false'
-        run: |
-          echo "${{ steps.pypi.outputs.version }}" > .published-version
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add .published-version
-          git commit -m "chore: update published version to ${{ steps.pypi.outputs.version }} [skip ci]"
-          git push
