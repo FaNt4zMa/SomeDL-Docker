@@ -22,7 +22,7 @@ RUN if [ "$SOMEDL_VERSION" = "latest" ]; then \
     fi
 
 RUN groupadd somedl && \
-    useradd -M -g somedl somedl
+    useradd -d /config -M -g somedl somedl
 
 ENV XDG_CONFIG_HOME=/config
 ENV HOME=/config
