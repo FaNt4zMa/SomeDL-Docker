@@ -11,6 +11,6 @@ echo "[somedl] Starting with UID=${PUID}, GID=${PGID}"
 groupmod -o -g "$PGID" somedl
 usermod -o -u "$PUID" somedl
 
-chown -R somedl:somedl /config/SomeDL /downloads
+chown -R somedl:somedl /config /downloads
 
 exec gosu somedl "$@"

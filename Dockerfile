@@ -25,6 +25,7 @@ RUN groupadd somedl && \
     useradd -M -g somedl somedl
 
 ENV XDG_CONFIG_HOME=/config
+ENV HOME=/config
 
 RUN mkdir -p /config/SomeDL /downloads
 
